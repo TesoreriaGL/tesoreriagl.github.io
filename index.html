@@ -1,0 +1,211 @@
+import pandas as pd
+
+# Definición del nuevo contenido HTML con diseño mejorado y conexión a Sheets
+html_content = """<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tesorería GL — Monitor de Divisas</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0c10;
+            --surface: #12151c;
+            --card: #181c26;
+            --border: #2d3343;
+            --accent: #4fffb0; /* Verde Neón */
+            --text-main: #e8eaf2;
+            --text-muted: #8b949e;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            letter-spacing: -0.5px;
+            color: var(--accent);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .status-bar {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            background: var(--surface);
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            display: inline-block;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            transition: transform 0.2s, border-color 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .card::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 4px; height: 100%;
+            background: var(--accent);
+            opacity: 0.3;
+        }
+
+        .card-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .card-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 2.2rem;
+            font-weight: 500;
+            color: var(--text-main);
+        }
+
+        .card-value span {
+            font-size: 1.2rem;
+            color: var(--accent);
+            margin-right: 4px;
+        }
+
+        #loader {
+            color: var(--accent);
+            font-family: 'DM Mono', monospace;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 600px) {
+            .grid-container { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Monitor de Divisas — Tesorería</h1>
+        <div class="status-bar">
+            ACTUALIZADO AL: <span id="fecha-val">CARGANDO...</span>
+        </div>
+    </div>
+
+    <div id="loader">Sincronizando con Google Sheets...</div>
+
+    <div class="grid-container" id="dashboard" style="display: none;">
+        <div class="card">
+            <span class="card-label">USD Oficial (Venta)</span>
+            <div class="card-value"><span>$</span><span id="usd-val">0.00</span></div>
+        </div>
+        <div class="card">
+            <span class="card-label">Dólar CCL</span>
+            <div class="card-value"><span>$</span><span id="ccl-val">0.00</span></div>
+        </div>
+        <div class="card">
+            <span class="card-label">Dólar MEP</span>
+            <div class="card-value"><span>$</span><span id="mep-val">0.00</span></div>
+        </div>
+        <div class="card">
+            <span class="card-label">Oficial A3500</span>
+            <div class="card-value"><span>$</span><span id="a3500-val">0.00</span></div>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURACIÓN ---
+        // PEGA AQUÍ TU URL DE GOOGLE SHEETS (PUBLICA COMO CSV)
+        const SHEET_CSV_URL = https://docs.google.com/spreadsheets/d/e/2PACX-1vT2bQM7pdAJbxlSojH4kE3kTI-Ck4vOSporH53ECkKjSyYjOZU_cbfuOWOR7NBAKA/pub?gid=1838358506&single=true&output=csv;
+
+        async function init() {
+            if (SHEET_CSV_URL === 'TU_URL_DE_GOOGLE_SHEETS_AQUI') {
+                document.getElementById('loader').innerText = 'Error: No se ha configurado la URL de Google Sheets.';
+                return;
+            }
+
+            try {
+                const response = await fetch(SHEET_CSV_URL);
+                const csvText = await response.text();
+                
+                // Procesar CSV
+                const filas = csvText.split('\\n')
+                                    .filter(line => line.trim() !== "")
+                                    .map(line => line.split(','));
+
+                // Obtenemos la última fila (la más reciente)
+                const data = filas[filas.length - 1];
+
+                // Mapeo según tu Planilla (A=0, B=1, C=2...)
+                const valores = {
+                    fecha: data[0],    // Columna A (Día)
+                    usdVenta: data[2], // Columna C (USD Venta)
+                    ccl: data[20],     // Columna U (CCL)
+                    mep: data[22],     // Columna W (MEP)
+                    a3500: data[21]    // Columna V (Dólar Oficial 3500)
+                };
+
+                // Actualizar Interfaz
+                document.getElementById('fecha-val').innerText = valores.fecha;
+                document.getElementById('usd-val').innerText = valores.usdVenta;
+                document.getElementById('ccl-val').innerText = valores.ccl;
+                document.getElementById('mep-val').innerText = valores.mep;
+                document.getElementById('a3500-val').innerText = valores.a3500;
+
+                // Mostrar Dashboard y ocultar loader
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'grid';
+
+            } catch (e) {
+                console.error(e);
+                document.getElementById('loader').innerText = 'Error al conectar con la base de datos.';
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
+"""
+
+with open("index.html", "w", encoding="utf-8") as f:
+    f.write(html_content)
