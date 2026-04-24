@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tipo de Cambio — Monitor Diario</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #12151c;
+    --card: #181c26;
+    --border: #252a38;
+    --accent: #4fffb0;
+    --accent2: #ff6b6b;
+    --accent3: #ffd166;
+    --text: #e8eaf2;
+    --muted: #6b7394;
+    --up: #4fffb0;
+    --down: #ff6b6b;
+    --neutral: #ffd166;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(79,255,176,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,255,176,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 40px;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .logo-area h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+    color: #fff;
+  }
+
+  .logo-area h1 span {
+    color: var(--accent);
+  }
+
+  .logo-area .subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 8px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    position: relative;
+    background: var(--card);
+    border: 1.5px dashed var(--border);
+    border-radius: 16px;
+    padding: 28px 32px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 260px;
+  }
+
+  .upload-zone:hover, .upload-zone.drag {
+    border-color: var(--accent);
+    background: rgba(79,255,176,0.04);
+  }
+
+  .upload-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .upload-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: rgba(79,255,176,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .upload-icon svg { color: var(--accent); }
+
+  .upload-text strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .upload-text span {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Status bar */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 32px;
+    padding: 14px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+
+  .status-dot.ok { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .status-dot.err { background: var(--accent2); }
+
+  #status-msg { flex: 1; }
+
+  #fecha-label {
+    margin-left: auto;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* Sections */
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  /* BNA Table (rows 2-4) */
+  .bna-section { margin-bottom: 40px; }
+
+  .bna-grid {
+    display: grid;
+    gap: 12px;
+  }
+
+  .bna-group {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  .bna-group-header {
+    padding: 12px 20px;
+    background: rgba(79,255,176,0.06);
+    border-bottom: 1px solid var(--border);
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .bna-cells {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  .bna-cell {
+    padding: 16px 20px;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .bna-cell:last-child { border-right: none; }
+
+  .bna-cell .label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.5px;
+  }
+
+  .bna-cell .value {
+    font-family: 'DM Mono', monospace;
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  /* Dollar cards (rows 6-11) */
+  .dolar-section { margin-bottom: 40px; }
+
+  .dolar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+  }
+
+  .dolar-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+
+  .dolar-card:hover {
+    border-color: rgba(79,255,176,0.3);
+    transform: translateY(-2px);
+  }
+
+  .dolar-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--accent);
+    opacity: 0.6;
+  }
+
+  .dolar-card.ccl::before { background: var(--accent); }
+  .dolar-card.oficial::before { background: var(--accent3); }
+  .dolar-card.mep::before { background: #a78bfa; }
+  .dolar-card.naviera::before { background: #60a5fa; }
+  .dolar-card.blue::before { background: var(--accent2); }
+
+  .dolar-card .card-name {
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .dolar-card .tc {
+    font-family: 'Syne', sans-serif;
+    font-size: 30px;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+
+  .dolar-card .tc-ant {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 12px;
+  }
+
+  .dolar-card .metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+  }
+
+  .metric-row .mkey {
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .metric-row .mval {
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+  }
+
+  .up { color: var(--up); }
+  .down { color: var(--down); }
+  .neutral { color: var(--neutral); }
+
+  /* Sources */
+  .sources-section {
+    margin-top: 12px;
+    padding: 18px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .sources-section .src-label {
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-right: 6px;
+  }
+
+  .source-tag {
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    color: var(--accent);
+    background: rgba(79,255,176,0.08);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(79,255,176,0.2);
+    text-decoration: none;
+    transition: background 0.15s;
+  }
+
+  .source-tag:hover { background: rgba(79,255,176,0.15); }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--muted);
+  }
+
+  .empty-state .big-icon {
+    font-size: 56px;
+    margin-bottom: 20px;
+    opacity: 0.4;
+  }
+
+  .empty-state h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    color: var(--text);
+    margin-bottom: 8px;
+    opacity: 0.7;
+  }
+
+  .empty-state p {
+    font-size: 14px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.5px;
+  }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 32px 0;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .animate-in { animation: fadeIn 0.4s ease both; }
+
+  @media (max-width: 600px) {
+    .dolar-grid { grid-template-columns: 1fr 1fr; }
+    .bna-cells { grid-template-columns: 1fr 1fr; }
+    header { flex-direction: column; }
+    .upload-zone { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div class="logo-area">
+      <h1>TIPO DE <span>CAMBIO</span></h1>
+      <div class="subtitle">Monitor Diario · Argentina</div>
+    </div>
+    <label class="upload-zone" id="drop-zone">
+      <input type="file" id="file-input" accept=".xlsx,.xls" />
+      <div class="upload-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <div class="upload-text">
+        <strong>Subir Planilla</strong>
+        <span>.xlsx actualizado</span>
+      </div>
+    </label>
+  </header>
+
+  <div class="status-bar">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-msg">Esperando archivo...</span>
+    <span id="fecha-label"></span>
+  </div>
+
+  <div id="content">
+    <div class="empty-state">
+      <div class="big-icon">📊</div>
+      <h3>Subí la planilla para comenzar</h3>
+      <p>Arrastrá el archivo o usá el botón de arriba</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const fileInput = document.getElementById('file-input');
+const dropZone = document.getElementById('drop-zone');
+const statusDot = document.getElementById('status-dot');
+const statusMsg = document.getElementById('status-msg');
+const fechaLabel = document.getElementById('fecha-label');
+const content = document.getElementById('content');
+
+// Drag & drop
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+});
+
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) processFile(e.target.files[0]);
+});
+
+function setStatus(msg, state) {
+  statusMsg.textContent = msg;
+  statusDot.className = 'status-dot' + (state ? ' ' + state : '');
+}
+
+function fmt(val, decimals = 2) {
+  if (val === null || val === undefined || val === '') return '—';
+  const n = parseFloat(val);
+  if (isNaN(n)) return val;
+  return n.toLocaleString('es-AR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function fmtPct(val) {
+  if (val === null || val === undefined) return '—';
+  const n = parseFloat(val);
+  if (isNaN(n)) return val; // already formatted string like "0,09% ▲"
+  const pct = (n * 100).toFixed(2).replace('.', ',');
+  const arrow = n > 0.0001 ? ' ▲' : n < -0.0001 ? ' ▼' : ' ►';
+  return pct + '%' + arrow;
+}
+
+function getClass(val) {
+  const n = parseFloat(val);
+  if (isNaN(n)) {
+    if (typeof val === 'string') {
+      if (val.includes('▲')) return 'up';
+      if (val.includes('▼')) return 'down';
+    }
+    return 'neutral';
+  }
+  if (n > 0.0001) return 'up';
+  if (n < -0.0001) return 'down';
+  return 'neutral';
+}
+
+function processFile(file) {
+  setStatus('Leyendo archivo...', '');
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellStyles: true, cellDates: true });
+      const ws = wb.Sheets['mail'];
+      if (!ws) {
+        setStatus('No se encontró la pestaña "mail" en el archivo.', 'err');
+        return;
+      }
+      renderSheet(ws, file.name);
+    } catch(err) {
+      setStatus('Error al leer el archivo: ' + err.message, 'err');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function cellVal(ws, addr) {
+  const c = ws[addr];
+  if (!c) return null;
+  if (c.t === 'd' && c.v instanceof Date) return c.v;
+  return c.v !== undefined ? c.v : null;
+}
+
+function renderSheet(ws, filename) {
+  // --- Row 2 headers: B2=USD/ARS, F2=EUR/ARS, I2=EUR/USD
+  // --- Row 3 subheaders
+  // --- Row 4 values
+
+  // BNA data
+  const bnaGroups = [
+    {
+      name: cellVal(ws, 'B2') || 'USD/ARS',
+      cols: [
+        { label: cellVal(ws, 'B3'), val: cellVal(ws, 'B4') },
+        { label: cellVal(ws, 'C3'), val: cellVal(ws, 'C4') },
+        { label: cellVal(ws, 'D3'), val: cellVal(ws, 'D4') },
+        { label: cellVal(ws, 'E3'), val: cellVal(ws, 'E4') },
+      ]
+    },
+    {
+      name: cellVal(ws, 'F2') || 'EUR/ARS',
+      cols: [
+        { label: cellVal(ws, 'F3'), val: cellVal(ws, 'F4') },
+        { label: cellVal(ws, 'G3'), val: cellVal(ws, 'G4') },
+        { label: cellVal(ws, 'H3'), val: cellVal(ws, 'H4') },
+      ]
+    },
+    {
+      name: cellVal(ws, 'I2') || 'EUR/USD',
+      cols: [
+        { label: cellVal(ws, 'I3'), val: cellVal(ws, 'I4') },
+        { label: cellVal(ws, 'J3'), val: cellVal(ws, 'J4') },
+        { label: cellVal(ws, 'K3'), val: cellVal(ws, 'K4') },
+      ]
+    }
+  ];
+
+  // Date (B6)
+  const fechaRaw = cellVal(ws, 'B6');
+  let fechaStr = '';
+  if (fechaRaw instanceof Date) {
+    fechaStr = fechaRaw.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    fechaStr = fechaStr.charAt(0).toUpperCase() + fechaStr.slice(1);
+  } else if (fechaRaw) {
+    fechaStr = String(fechaRaw);
+  }
+
+  // Dollar types (C6..G6 = names, C7..G7 = TC, C8..G8 = TC ant, C10..G10 = Var Dia, C11..G11 = Brecha)
+  const dolarCols = ['C', 'D', 'E', 'F', 'G'];
+  const dolarCss = ['ccl', 'oficial', 'mep', 'naviera', 'blue'];
+  const dolares = dolarCols.map((col, i) => ({
+    name: cellVal(ws, col + '6'),
+    tc: cellVal(ws, col + '7'),
+    tcAnt: cellVal(ws, col + '8'),
+    varRaw: cellVal(ws, col + '9'),
+    varStr: cellVal(ws, col + '10'),
+    brechaRaw: cellVal(ws, col + '11'),
+    css: dolarCss[i]
+  }));
+
+  // Sources (O7..O14)
+  const sources = [];
+  for (let r = 7; r <= 14; r++) {
+    const v = cellVal(ws, 'O' + r);
+    if (v && String(v).trim()) sources.push(String(v).trim());
+  }
+
+  // Update status
+  setStatus(`✓ ${filename}`, 'ok');
+  fechaLabel.textContent = fechaStr;
+
+  // Build HTML
+  let html = `<div class="animate-in">`;
+
+  // BNA Section
+  html += `<div class="bna-section">
+    <div class="section-label">Cotizaciones BNA</div>
+    <div class="bna-grid">`;
+
+  for (const group of bnaGroups) {
+    if (!group.cols.some(c => c.val !== null)) continue;
+    html += `<div class="bna-group">
+      <div class="bna-group-header">${escHtml(group.name)}</div>
+      <div class="bna-cells">`;
+    for (const col of group.cols) {
+      if (!col.label && col.val === null) continue;
+      const decimals = String(group.name).includes('EUR/USD') ? 4 : 2;
+      html += `<div class="bna-cell">
+        <div class="label">${escHtml(col.label || '')}</div>
+        <div class="value">${fmt(col.val, decimals)}</div>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  html += `</div></div><div class="divider"></div>`;
+
+  // Dollar section
+  html += `<div class="dolar-section">
+    <div class="section-label">Tipos de Cambio del Día</div>
+    <div class="dolar-grid">`;
+
+  for (const d of dolares) {
+    if (!d.name || d.tc === null) continue;
+    const varDisplay = d.varStr || fmtPct(d.varRaw);
+    const varClass = getClass(d.varStr || d.varRaw);
+    const brechaDisplay = d.brechaRaw !== null ? fmt(d.brechaRaw * 100, 2) + '%' : '—';
+    const brechaClass = getClass(d.brechaRaw);
+
+    html += `<div class="dolar-card ${d.css}">
+      <div class="card-name">${escHtml(d.name)}</div>
+      <div class="tc">${fmt(d.tc, 2)}</div>
+      <div class="tc-ant">Ant. ${fmt(d.tcAnt, 2)}</div>
+      <div class="metrics">
+        <div class="metric-row">
+          <span class="mkey">Var. Día</span>
+          <span class="mval ${varClass}">${escHtml(varDisplay)}</span>
+        </div>
+        <div class="metric-row">
+          <span class="mkey">Brecha CCL</span>
+          <span class="mval ${brechaClass}">${brechaDisplay}</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  html += `</div></div>`;
+
+  // Sources
+  if (sources.length) {
+    html += `<div class="sources-section">
+      <span class="src-label">Fuentes</span>`;
+    for (const s of sources) {
+      const href = s.startsWith('www.') ? 'https://' + s : s;
+      html += `<a class="source-tag" href="${escAttr(href)}" target="_blank" rel="noopener">${escHtml(s)}</a>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  content.innerHTML = html;
+}
+
+function escHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return escHtml(s);
+}
+</script>
+<script>
+// Reemplaza con el enlace CSV que copiaste en el paso anterior
+const SHEET_CSV_URL = https://docs.google.com/spreadsheets/d/e/2PACX-1vT2bQM7pdAJbxlSojH4kE3kTI-Ck4vOSporH53ECkKjSyYjOZU_cbfuOWOR7NBAKA/pub?gid=1838358506&single=true&output=csv;
+
+async function cargarDatosTesoria() {
+    try {
+        const response = await fetch(SHEET_CSV_URL);
+        const data = await response.text();
+        
+        // Convertimos el CSV en un array de objetos
+        const filas = data.split('\n').map(row => row.split(','));
+        
+        // Ejemplo: Obtener la última fila de la planilla (datos más recientes)
+        const ultimaFila = filas[filas.length - 1];
+        
+        // Según tu estructura de archivo: 
+        // Día (Col 0), Compra (Col 1), Venta (Col 2), CCL (Col 20), MEP (Col 22)
+        const indicadores = {
+            fecha: ultimaFila[0],
+            usdCompra: ultimaFila[1],
+            usdVenta: ultimaFila[2],
+            ccl: ultimaFila[20],
+            mep: ultimaFila[22]
+        };
+
+        actualizarDashboard(indicadores);
+        
+    } catch (error) {
+        console.error('Error al conectar con Google Sheets:', error);
+    }
+}
+
+function actualizarDashboard(info) {
+    // Aquí actualizas los elementos de tu HTML
+    document.getElementById('fecha-actualizacion').innerText = info.fecha;
+    document.getElementById('valor-usd').innerText = `$${info.usdVenta}`;
+    document.getElementById('valor-ccl').innerText = `$${info.ccl}`;
+    // ... etc
+}
+
+// Ejecutar al cargar la página
+cargarDatosTesoria();
+</script>
+</body>
+</html>
