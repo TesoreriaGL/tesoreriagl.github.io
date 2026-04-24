@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tesorería GL — Monitor de Divisas</title>
+    <title>Monitor de Divisas — Tesorería GL</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -31,17 +31,17 @@
 
         .header {
             text-align: center;
-            margin-bottom: 40px;
+            margin-bottom: 30px;
             width: 100%;
-            max-width: 1000px;
+            max-width: 1100px;
         }
 
         .header h1 {
-            font-size: 1.5rem;
-            letter-spacing: -0.5px;
+            font-size: 1.4rem;
             color: var(--accent);
             text-transform: uppercase;
-            margin-bottom: 8px;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
         }
 
         .status-bar {
@@ -55,83 +55,159 @@
             display: inline-block;
         }
 
+        .section-title {
+            width: 100%;
+            max-width: 1100px;
+            font-size: 0.8rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            margin: 25px 0 15px 0;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 5px;
+            letter-spacing: 2px;
+        }
+
         .grid-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
             width: 100%;
-            max-width: 1000px;
+            max-width: 1100px;
         }
 
         .card {
             background: var(--card);
             border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 24px;
-            position: relative;
-            overflow: hidden;
+            border-radius: 10px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
         }
 
         .card-label {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 600;
             color: var(--text-muted);
             text-transform: uppercase;
-            margin-bottom: 12px;
-            display: block;
+            margin-bottom: 10px;
+        }
+
+        .card-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+
+        .val-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .val-sublabel {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
         }
 
         .card-value {
             font-family: 'DM Mono', monospace;
-            font-size: 2.2rem;
+            font-size: 1.8rem;
             font-weight: 500;
+            color: var(--text-main);
         }
 
-        .card-value span.symbol {
-            font-size: 1.2rem;
-            color: var(--accent);
-            margin-right: 4px;
-        }
+        .symbol { color: var(--accent); font-size: 1rem; margin-right: 2px; }
 
         #loader {
             color: var(--accent);
             font-family: 'DM Mono', monospace;
-            margin-top: 20px;
+            margin-top: 50px;
+        }
+
+        @media (max-width: 600px) {
+            .grid-container { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <h1>Monitor de Divisas — Tesorería</h1>
+        <h1>Sistema de Cotizaciones — Tesorería</h1>
         <div class="status-bar">
-            CIERRE AL: <span id="fecha-val">SINCRONIZANDO...</span>
+            FECHA PLANILLA: <span id="fecha-val">CARGANDO...</span>
         </div>
     </div>
 
-    <div id="loader">Accediendo a datos de planilla...</div>
+    <div id="loader">Sincronizando datos...</div>
 
-    <div class="grid-container" id="dashboard" style="display: none;">
-        <div class="card">
-            <span class="card-label">USD Oficial (Venta)</span>
-            <div class="card-value"><span class="symbol">$</span><span id="usd-val">0.00</span></div>
+    <div id="dashboard" style="display: none; width: 100%; max-width: 1100px;">
+        
+        <div class="section-title">Dólar Oficial & Financiero</div>
+        <div class="grid-container">
+            <div class="card">
+                <span class="card-label">USD Oficial (Billete)</span>
+                <div class="card-row">
+                    <div class="val-group">
+                        <span class="val-sublabel">Compra</span>
+                        <div class="card-value"><span class="symbol">$</span><span id="usd-compra">0.00</span></div>
+                    </div>
+                    <div class="val-group">
+                        <span class="val-sublabel">Venta</span>
+                        <div class="card-value"><span class="symbol">$</span><span id="usd-venta">0.00</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <span class="card-label">Dólar Financiero</span>
+                <div class="card-row">
+                    <div class="val-group">
+                        <span class="val-sublabel">CCL</span>
+                        <div class="card-value"><span class="symbol">$</span><span id="ccl-val">0.00</span></div>
+                    </div>
+                    <div class="val-group">
+                        <span class="val-sublabel">MEP</span>
+                        <div class="card-value"><span class="symbol">$</span><span id="mep-val">0.00</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <span class="card-label">BCRA A3500</span>
+                <div class="card-value"><span class="symbol">$</span><span id="a3500-val">0.00</span></div>
+            </div>
         </div>
-        <div class="card">
-            <span class="card-label">Dólar CCL</span>
-            <div class="card-value"><span class="symbol">$</span><span id="ccl-val">0.00</span></div>
-        </div>
-        <div class="card">
-            <span class="card-label">Dólar MEP</span>
-            <div class="card-value"><span class="symbol">$</span><span id="mep-val">0.00</span></div>
-        </div>
-        <div class="card">
-            <span class="card-label">Oficial A3500</span>
-            <div class="card-value"><span class="symbol">$</span><span id="a3500-val">0.00</span></div>
+
+        <div class="section-title">Euro & Otros Dólares</div>
+        <div class="grid-container">
+            <div class="card">
+                <span class="card-label">Euro Oficial</span>
+                <div class="card-row">
+                    <div class="val-group">
+                        <span class="val-sublabel">Compra</span>
+                        <div class="card-value"><span class="symbol">$</span><span id="eur-compra">0.00</span></div>
+                    </div>
+                    <div class="val-group">
+                        <span class="val-sublabel">Venta</span>
+                        <div class="card-value"><span class="symbol">$</span><span id="eur-venta">0.00</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <span class="card-label">Dólar Blue / Naviera</span>
+                <div class="card-row">
+                    <div class="val-group">
+                        <span class="val-sublabel">Blue</span>
+                        <div class="card-value"><span class="symbol">$</span><span id="blue-val">0.00</span></div>
+                    </div>
+                    <div class="val-group">
+                        <span class="val-sublabel">Naviera</span>
+                        <div class="card-value"><span class="symbol">$</span><span id="naviera-val">0.00</span></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        // PEGA AQUÍ TU URL DE GOOGLE SHEETS (PUBLICA COMO CSV)
         const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT2bQM7pdAJbxlSojH4kE3kTI-Ck4vOSporH53ECkKjSyYjOZU_cbfuOWOR7NBAKA/pub?gid=1838358506&single=true&output=csv';
 
         async function init() {
@@ -139,36 +215,41 @@
                 const response = await fetch(SHEET_CSV_URL);
                 const csvText = await response.text();
                 
-                // Procesar filas y limpiar vacíos
                 const filas = csvText.split('\n')
                                     .map(line => line.split(','))
-                                    .filter(f => f[0] && f[0].trim() !== "");
+                                    .filter(f => f[0] && f[0].trim() !== "" && f[0] !== "Día");
 
-                // Buscamos la última fila que parezca tener una fecha (ej: 2026-04-23)
-                // Esto evita errores si hay filas vacías al final de la hoja
-                let data = filas[filas.length - 1];
-                
-                const valores = {
-                    fecha: data[0] || 'N/A', 
-                    usdVenta: data[2] || '0.00', 
-                    ccl: data[20] || '0.00',     
-                    mep: data[22] || '0.00',    
-                    a3500: data[21] || '0.00'   
+                const data = filas[filas.length - 1];
+
+                const mapping = {
+                    fecha: data[0],
+                    usdC: data[1],  // Col B
+                    usdV: data[2],  // Col C
+                    eurC: data[5],  // Col F
+                    eurV: data[6],  // Col G
+                    ccl: data[20],  // Col U
+                    a35: data[21],  // Col V
+                    mep: data[22],  // Col W
+                    nav: data[23],  // Col X
+                    blu: data[24]   // Col Y
                 };
 
-                // Inyectar datos en el HTML
-                document.getElementById('fecha-val').innerText = valores.fecha.toUpperCase();
-                document.getElementById('usd-val').innerText = valores.usdVenta;
-                document.getElementById('ccl-val').innerText = valores.ccl;
-                document.getElementById('mep-val').innerText = valores.mep;
-                document.getElementById('a3500-val').innerText = valores.a3500;
+                document.getElementById('fecha-val').innerText = mapping.fecha;
+                document.getElementById('usd-compra').innerText = mapping.usdC;
+                document.getElementById('usd-venta').innerText = mapping.usdV;
+                document.getElementById('eur-compra').innerText = mapping.eurC;
+                document.getElementById('eur-venta').innerText = mapping.eurV;
+                document.getElementById('ccl-val').innerText = mapping.ccl;
+                document.getElementById('a3500-val').innerText = mapping.a35;
+                document.getElementById('mep-val').innerText = mapping.mep;
+                document.getElementById('naviera-val').innerText = mapping.nav;
+                document.getElementById('blue-val').innerText = mapping.blu;
 
-                // Mostrar interfaz
                 document.getElementById('loader').style.display = 'none';
-                document.getElementById('dashboard').style.display = 'grid';
+                document.getElementById('dashboard').style.display = 'block';
 
             } catch (e) {
-                document.getElementById('loader').innerText = 'Error de conexión. Verifica la publicación del CSV.';
+                document.getElementById('loader').innerText = 'Error al cargar datos.';
                 console.error(e);
             }
         }
