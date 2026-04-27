@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitor de Divisas — Tesorería GL</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- Chart.js para el gráfico de evolución -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg: #0a0c10;
@@ -69,7 +71,7 @@
 
         .grid-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
             width: 100%;
             max-width: 1100px;
@@ -79,7 +81,7 @@
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 10px;
-            padding: 20px;
+            padding: 15px 20px;
             display: flex;
             flex-direction: column;
         }
@@ -89,7 +91,7 @@
             font-weight: 600;
             color: var(--text-muted);
             text-transform: uppercase;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
 
         .card-row {
@@ -98,25 +100,27 @@
             align-items: baseline;
         }
 
-        .val-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .val-sublabel {
-            font-size: 0.6rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-        }
+        .val-group { display: flex; flex-direction: column; }
+        .val-sublabel { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; }
 
         .card-value {
             font-family: 'DM Mono', monospace;
-            font-size: 1.5rem;
+            font-size: 1.6rem;
             font-weight: 500;
             color: var(--text-main);
         }
 
-        .symbol { color: var(--accent); font-size: 1rem; margin-right: 2px; }
+        .symbol { color: var(--accent); font-size: 0.9rem; margin-right: 2px; }
+
+        .chart-section {
+            width: 100%;
+            max-width: 1100px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
 
         #loader {
             color: var(--accent);
@@ -132,20 +136,21 @@
 <body>
 
     <div class="header">
-        <h1>Sistema de Cotizaciones — Tesorería</h1>
+        <h1>Sistema de Cotizaciones — Tesorería GL</h1>
         <div class="status-bar">
-            FECHA PLANILLA: <span id="fecha-val">CARGANDO...</span>
+            ÚLTIMO REGISTRO: <span id="fecha-val">CARGANDO...</span>
         </div>
     </div>
 
-    <div id="loader">Sincronizando datos...</div>
+    <div id="loader">Cargando datos históricos y cotizaciones...</div>
 
     <div id="dashboard" style="display: none; width: 100%; max-width: 1100px;">
         
-        <div class="section-title">Dólar Oficial & Financiero</div>
+        <div class="section-title">Dólar Oficial & BNA</div>
         <div class="grid-container">
+            <!-- USD OFICIAL -->
             <div class="card">
-                <span class="card-label">USD Oficial (Billete)</span>
+                <span class="card-label">USD Oficial (Minorista)</span>
                 <div class="card-row">
                     <div class="val-group">
                         <span class="val-sublabel">Compra</span>
@@ -157,8 +162,28 @@
                     </div>
                 </div>
             </div>
+            <!-- USD BILLETE -->
             <div class="card">
-                <span class="card-label">Dólar Financiero</span>
+                <span class="card-label">USD Billete (BNA)</span>
+                <div class="val-group">
+                    <span class="val-sublabel">Cotización</span>
+                    <div class="card-value"><span class="symbol">$</span><span id="usd-billete">0.00</span></div>
+                </div>
+            </div>
+            <!-- BCRA A3500 -->
+            <div class="card">
+                <span class="card-label">BCRA (A3500)</span>
+                <div class="val-group">
+                    <span class="val-sublabel">T.C. Mayorista</span>
+                    <div class="card-value"><span class="symbol">$</span><span id="a3500-val">0.00</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">Financieros & Otros</div>
+        <div class="grid-container">
+            <div class="card">
+                <span class="card-label">CCL / MEP</span>
                 <div class="card-row">
                     <div class="val-group">
                         <span class="val-sublabel">CCL</span>
@@ -170,14 +195,6 @@
                     </div>
                 </div>
             </div>
-            <div class="card">
-                <span class="card-label">BCRA A3500</span>
-                <div class="card-value"><span class="symbol">$</span><span id="a3500-val">0.00</span></div>
-            </div>
-        </div>
-
-        <div class="section-title">Euro & Otros Dólares</div>
-        <div class="grid-container">
             <div class="card">
                 <span class="card-label">Euro Oficial</span>
                 <div class="card-row">
@@ -192,7 +209,7 @@
                 </div>
             </div>
             <div class="card">
-                <span class="card-label">Dólar Blue / Naviera</span>
+                <span class="card-label">Blue & Naviera</span>
                 <div class="card-row">
                     <div class="val-group">
                         <span class="val-sublabel">Blue</span>
@@ -204,6 +221,11 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="section-title">Evolución Trimestral (USD)</div>
+        <div class="chart-section">
+            <canvas id="evolutionChart" height="300"></canvas>
         </div>
     </div>
 
@@ -219,39 +241,65 @@
                                     .map(line => line.split(','))
                                     .filter(f => f[0] && f[0].trim() !== "" && f[0] !== "Día");
 
-                const data = filas[filas.length - 1];
+                const actual = filas[filas.length - 1];
 
-                const mapping = {
-                    fecha: data[0],
-                    usdC: data[1],  // Col B
-                    usdV: data[2],  // Col C
-                    eurC: data[5],  // Col F
-                    eurV: data[6],  // Col G
-                    ccl: data[20],  // Col U
-                    a35: data[21],  // Col V
-                    mep: data[22],  // Col W
-                    nav: data[23],  // Col X
-                    blu: data[24]   // Col Y
+                // Mapeo
+                const map = {
+                    fecha: actual[0],
+                    usdC: actual[1], usdV: actual[2], usdB: actual[4],
+                    eurC: actual[5], eurV: actual[6],
+                    ccl: actual[20], a35: actual[21], mep: actual[22], nav: actual[23], blu: actual[24]
                 };
 
-                document.getElementById('fecha-val').innerText = mapping.fecha;
-                document.getElementById('usd-compra').innerText = mapping.usdC;
-                document.getElementById('usd-venta').innerText = mapping.usdV;
-                document.getElementById('eur-compra').innerText = mapping.eurC;
-                document.getElementById('eur-venta').innerText = mapping.eurV;
-                document.getElementById('ccl-val').innerText = mapping.ccl;
-                document.getElementById('a3500-val').innerText = mapping.a35;
-                document.getElementById('mep-val').innerText = mapping.mep;
-                document.getElementById('naviera-val').innerText = mapping.nav;
-                document.getElementById('blue-val').innerText = mapping.blu;
+                // Inyectar Tarjetas
+                document.getElementById('fecha-val').innerText = map.fecha;
+                document.getElementById('usd-compra').innerText = map.usdC;
+                document.getElementById('usd-venta').innerText = map.usdV;
+                document.getElementById('usd-billete').innerText = map.usdB;
+                document.getElementById('eur-compra').innerText = map.eurC;
+                document.getElementById('eur-venta').innerText = map.eurV;
+                document.getElementById('ccl-val').innerText = map.ccl;
+                document.getElementById('a3500-val').innerText = map.a35;
+                document.getElementById('mep-val').innerText = map.mep;
+                document.getElementById('naviera-val').innerText = map.nav;
+                document.getElementById('blue-val').innerText = map.blu;
+
+                // Histórico 90 días (aprox)
+                const history = filas.slice(-90);
+                renderChart(history);
 
                 document.getElementById('loader').style.display = 'none';
                 document.getElementById('dashboard').style.display = 'block';
 
             } catch (e) {
-                document.getElementById('loader').innerText = 'Error al cargar datos.';
+                document.getElementById('loader').innerText = 'Error al sincronizar con la planilla.';
                 console.error(e);
             }
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('evolutionChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(f => f[0]),
+                    datasets: [
+                        { label: 'Oficial V.', data: data.map(f => parseFloat(f[2])), borderColor: '#4fffb0', borderWidth: 2, pointRadius: 0, fill: false },
+                        { label: 'CCL', data: data.map(f => parseFloat(f[20])), borderColor: '#ff6b6b', borderWidth: 2, pointRadius: 0, fill: false },
+                        { label: 'MEP', data: data.map(f => parseFloat(f[22])), borderColor: '#ffd166', borderWidth: 2, pointRadius: 0, fill: false },
+                        { label: 'Blue', data: data.map(f => parseFloat(f[24])), borderColor: '#00d4ff', borderWidth: 2, pointRadius: 0, fill: false }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#8b949e', maxTicksLimit: 10 } },
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8b949e' } }
+                    },
+                    plugins: { legend: { labels: { color: '#e8eaf2' } } }
+                }
+            });
         }
 
         window.onload = init;
