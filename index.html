@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Divisas — Tesorería GL</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #0a0c10;
+            --surface: #12151c;
+            --card: #181c26;
+            --border: #2d3343;
+            --accent: #4fffb0;
+            --text-main: #e8eaf2;
+            --text-muted: #8b949e;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .header { text-align: center; margin-bottom: 30px; width: 100%; max-width: 1100px; }
+        .header h1 { font-size: 1.4rem; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+        .status-bar { font-family: 'DM Mono', monospace; font-size: 0.85rem; color: var(--text-muted); background: var(--surface); padding: 8px 16px; border-radius: 20px; border: 1px solid var(--border); display: inline-block; }
+        .section-title { width: 100%; max-width: 1100px; font-size: 0.8rem; color: var(--accent); text-transform: uppercase; margin: 25px 0 15px 0; border-bottom: 1px solid var(--border); padding-bottom: 5px; letter-spacing: 2px; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; width: 100%; max-width: 1100px; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 15px 20px; display: flex; flex-direction: column; }
+        .card-label { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; }
+        .card-row { display: flex; justify-content: space-between; align-items: baseline; }
+        .val-group { display: flex; flex-direction: column; }
+        .val-sublabel { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; }
+        .card-value { font-family: 'DM Mono', monospace; font-size: 1.6rem; font-weight: 500; color: var(--text-main); }
+        .symbol { color: var(--accent); font-size: 0.9rem; margin-right: 2px; }
+        .chart-section { width: 100%; max-width: 1100px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-top: 20px; min-height: 400px; }
+        #loader {
+            color: var(--accent);
+            font-family: 'DM Mono', monospace;
+            margin-top: 50px;
+            text-align: center;
+            line-height: 2;
+        }
+        #loader small {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            margin-top: 8px;
+        }
+        #debug-info {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin-top: 15px;
+            width: 100%;
+            max-width: 1100px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Sistema de Cotizaciones — Tesorería GL</h1>
+        <div class="status-bar">ÚLTIMO REGISTRO: <span id="fecha-val">CARGANDO...</span></div>
+    </div>
+
+    <div id="loader">
+        Sincronizando datos...
+        <small id="loader-detail"></small>
+    </div>
+
+    <div id="dashboard" style="display: none; width: 100%; max-width: 1100px;">
+        <div class="section-title">Cotizaciones Principales</div>
+        <div class="grid-container">
+            <div class="card">
+                <span class="card-label">USD Oficial (Mayorista)</span>
+                <div class="card-row">
+                    <div class="val-group"><span class="val-sublabel">Compra</span><div class="card-value"><span class="symbol">$</span><span id="usd-compra">0</span></div></div>
+                    <div class="val-group"><span class="val-sublabel">Venta</span><div class="card-value"><span class="symbol">$</span><span id="usd-venta">0</span></div></div>
+                </div>
+            </div>
+            <div class="card">
+                <span class="card-label">USD Billete (BNA)</span>
+                <div class="val-group"><span class="val-sublabel">Cotización</span><div class="card-value"><span class="symbol">$</span><span id="usd-billete">0</span></div></div>
+            </div>
+            <div class="card">
+                <span class="card-label">Financieros</span>
+                <div class="card-row">
+                    <div class="val-group"><span class="val-sublabel">CCL</span><div class="card-value"><span class="symbol">$</span><span id="ccl-val">0</span></div></div>
+                    <div class="val-group"><span class="val-sublabel">MEP</span><div class="card-value"><span class="symbol">$</span><span id="mep-val">0</span></div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">Otros Tipos de Cambio</div>
+        <div class="grid-container">
+            <div class="card">
+                <span class="card-label">Euro Oficial</span>
+                <div class="card-row">
+                    <div class="val-group"><span class="val-sublabel">Compra</span><div class="card-value"><span class="symbol">$</span><span id="eur-compra">0</span></div></div>
+                    <div class="val-group"><span class="val-sublabel">Venta</span><div class="card-value"><span class="symbol">$</span><span id="eur-venta">0</span></div></div>
+                </div>
+            </div>
+            <div class="card">
+                <span class="card-label">Blue & Naviera</span>
+                <div class="card-row">
+                    <div class="val-group"><span class="val-sublabel">Blue</span><div class="card-value"><span class="symbol">$</span><span id="blue-val">0</span></div></div>
+                    <div class="val-group"><span class="val-sublabel">Naviera</span><div class="card-value"><span class="symbol">$</span><span id="naviera-val">0</span></div></div>
+                </div>
+            </div>
+            <div class="card">
+                <span class="card-label">BCRA (A3500)</span>
+                <div class="val-group"><span class="val-sublabel">TC Mayorista</span><div class="card-value"><span class="symbol">$</span><span id="a3500-val">0</span></div></div>
+            </div>
+        </div>
+
+        <div class="section-title">Evolución últimos 3 meses</div>
+        <div class="chart-section"><canvas id="evolutionChart"></canvas></div>
+    </div>
+
+    <div id="debug-info"></div>
+
+    <script>
+        const SHEET_ID = '2PACX-1vSFEuQObg_N4U8UJKEJaREyUTNbHCQ9H7--jqPB8lp44jt7fu4eupcqEhh4Hx2Iog';
+        const GID = '1372097991';
+        const CSV_URL = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub?gid=${GID}&single=true&output=csv`;
+
+        // Proxies CORS públicos a intentar en orden
+        const PROXIES = [
+            url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+            url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+            url => `https://cors-anywhere.herokuapp.com/${url}`,
+        ];
+
+        // Parser CSV robusto: maneja comas dentro de comillas y \r\n
+        function parseCSV(text) {
+            const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+            return lines.map(line => {
+                const cols = [];
+                let cur = '';
+                let inQuotes = false;
+                for (let i = 0; i < line.length; i++) {
+                    const ch = line[i];
+                    if (ch === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (ch === ',' && !inQuotes) {
+                        cols.push(cur.trim());
+                        cur = '';
+                    } else {
+                        cur += ch;
+                    }
+                }
+                cols.push(cur.trim());
+                return cols;
+            });
+        }
+
+        function setLoader(msg, detail = '') {
+            document.getElementById('loader').childNodes[0].textContent = msg;
+            document.getElementById('loader-detail').textContent = detail;
+        }
+
+        function showDebug(msg) {
+            const el = document.getElementById('debug-info');
+            el.style.display = 'block';
+            el.textContent = '⚠ DEBUG: ' + msg;
+        }
+
+        async function fetchWithProxy(proxyFn, url) {
+            const proxiedUrl = proxyFn(url);
+            const resp = await fetch(proxiedUrl, { cache: 'no-store' });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            return await resp.text();
+        }
+
+        async function fetchCSV() {
+            // Primero intentar directo (funciona si está en servidor con CORS ok)
+            try {
+                setLoader('Sincronizando datos...', 'Intento directo...');
+                const resp = await fetch(CSV_URL, { cache: 'no-store' });
+                if (resp.ok) {
+                    const text = await resp.text();
+                    if (text.includes(',')) return text; // parece CSV válido
+                }
+            } catch (_) {}
+
+            // Intentar cada proxy
+            for (let i = 0; i < PROXIES.length; i++) {
+                try {
+                    setLoader('Sincronizando datos...', `Usando proxy ${i + 1} de ${PROXIES.length}...`);
+                    const text = await fetchWithProxy(PROXIES[i], CSV_URL);
+                    if (text && text.includes(',')) return text;
+                } catch (e) {
+                    console.warn(`Proxy ${i + 1} falló:`, e);
+                }
+            }
+            throw new Error('Todos los proxies fallaron. Revisar conectividad o acceso al Sheet.');
+        }
+
+        async function init() {
+            try {
+                const csvText = await fetchCSV();
+
+                const allRows = parseCSV(csvText);
+
+                // Detectar fila de encabezados (primera fila no vacía)
+                const headerRow = allRows[0];
+
+                // Filtrar filas de datos: que tengan fecha válida (contiene '-' o '/')
+                const dataRows = allRows.slice(1).filter(f =>
+                    f[0] && (f[0].includes('-') || f[0].includes('/')) && f[0].length > 5
+                );
+
+                if (dataRows.length === 0) {
+                    throw new Error('No se encontraron filas de datos. Verificar estructura del Sheet.');
+                }
+
+                // ── Diagnóstico: mostrar encabezados en consola para verificar índices ──
+                console.log('Encabezados detectados:', headerRow);
+                console.log('Última fila:', dataRows[dataRows.length - 1]);
+
+                const actual = dataRows[dataRows.length - 1];
+
+                // Mapeo de columnas (ajustar índices según encabezados del Sheet)
+                const map = {
+                    fecha:  actual[0],
+                    usdC:   fmt(actual[1]),
+                    usdV:   fmt(actual[2]),
+                    usdB:   fmt(actual[4]),
+                    eurC:   fmt(actual[5]),
+                    eurV:   fmt(actual[6]),
+                    ccl:    fmt(actual[20]),
+                    a35:    fmt(actual[21]),
+                    mep:    fmt(actual[22]),
+                    nav:    fmt(actual[23]),
+                    blu:    fmt(actual[24]),
+                };
+
+                // Verificar que al menos algunos valores sean numéricos
+                const hasData = [map.usdC, map.usdV, map.ccl, map.blu].some(v => parseFloat(v) > 0);
+                if (!hasData) {
+                    showDebug(`Los valores leídos son cero o vacíos. Encabezados: [${headerRow.slice(0,10).join(' | ')}] — puede que los índices de columna necesiten ajuste.`);
+                }
+
+                document.getElementById('fecha-val').innerText = map.fecha;
+                document.getElementById('usd-compra').innerText   = map.usdC;
+                document.getElementById('usd-venta').innerText    = map.usdV;
+                document.getElementById('usd-billete').innerText  = map.usdB;
+                document.getElementById('eur-compra').innerText   = map.eurC;
+                document.getElementById('eur-venta').innerText    = map.eurV;
+                document.getElementById('ccl-val').innerText      = map.ccl;
+                document.getElementById('a3500-val').innerText    = map.a35;
+                document.getElementById('mep-val').innerText      = map.mep;
+                document.getElementById('naviera-val').innerText  = map.nav;
+                document.getElementById('blue-val').innerText     = map.blu;
+
+                renderChart(dataRows.slice(-90));
+
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+
+            } catch (e) {
+                setLoader('Error de sincronización.', e.message);
+                console.error(e);
+            }
+        }
+
+        // Formatear número: limpiar y redondear a 2 decimales si corresponde
+        function fmt(val) {
+            if (!val) return '–';
+            const n = parseFloat(val.replace(',', '.'));
+            if (isNaN(n)) return val;
+            return n % 1 === 0 ? n.toLocaleString('es-AR') : n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('evolutionChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(f => f[0]),
+                    datasets: [
+                        { label: 'Oficial Venta', data: data.map(f => parseFloat(f[2])),  borderColor: '#4fffb0', borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3 },
+                        { label: 'CCL',           data: data.map(f => parseFloat(f[20])), borderColor: '#ff6b6b', borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3 },
+                        { label: 'MEP',           data: data.map(f => parseFloat(f[22])), borderColor: '#ffd166', borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3 },
+                        { label: 'Blue',          data: data.map(f => parseFloat(f[24])), borderColor: '#00d4ff', borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3 },
+                        { label: 'Banda Superior', data: data.map(f => parseFloat(f[26])), borderColor: '#c084fc', borderWidth: 2, pointRadius: 0, borderDash: [5, 4], fill: false, tension: 0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#8b949e', maxTicksLimit: 10 } },
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8b949e' } }
+                    },
+                    plugins: { legend: { labels: { color: '#e8eaf2' } } }
+                }
+            });
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
