@@ -30,10 +30,10 @@
 
     <div class="header">
         <h1>Sistema de Cotizaciones — Tesorería GL</h1>
-        <div class="status-bar">ÚLTIMO REGISTRO: <span id="fecha-val">SINC...</span></div>
+        <div class="status-bar">ÚLTIMO REGISTRO: <span id="fecha-val">...</span></div>
     </div>
 
-    <div id="loader">Conectando con Google Sheets...</div>
+    <div id="loader">Sincronizando con Google Sheets...</div>
 
     <div id="dashboard" style="display: none; width: 100%; max-width: 1100px;">
         <div class="section-title">Cotizaciones Principales</div>
@@ -44,35 +44,36 @@
             <div class="card"><span class="card-label">MEP</span><div class="card-value"><span class="symbol">$</span><span id="mep-val">0</span></div></div>
         </div>
 
-        <div class="section-title">Evolución Tipos de cambio y Banda Superior</div>
+        <div class="section-title">Evolución Trimestral y Banda Superior</div>
         <div class="chart-section"><canvas id="evolutionChart"></canvas></div>
     </div>
 
     <script>
-        const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT2bQM7pdAJbxlSojH4kE3kTI-Ck4vOSporH53ECkKjSyYjOZU_cbfuOWOR7NBAKA/pub?output=csv';
+        const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT2bQM7pdAJbxlSojH4kE3kTI-Ck4vOSporH53ECkKjSyYjOZU_cbfuOWOR7NBAKA/pub?gid=1838358506&single=true&output=csv';
 
         async function init() {
             try {
-                // Forzamos la descarga de datos nuevos añadiendo un timestamp al final
-                const response = await fetch(SHEET_CSV_URL + '&cache_bust=' + new Date().getTime());
+                // Añadimos un timestamp para evitar que el navegador guarde una versión vieja (caché)
+                const response = await fetch(SHEET_CSV_URL + '&t=' + new Date().getTime());
                 const csvText = await response.text();
                 
-                const filas = csvText.split('\n')
+                // Procesamiento ultra-seguro de filas
+                const filas = csvText.split(/\r?\n/)
                                     .map(line => line.split(','))
-                                    .filter(f => f[0] && f[0].includes('-')); 
+                                    .filter(f => f[0] && f[0].trim().length > 5 && f[0].includes('-')); 
 
-                if (filas.length === 0) throw new Error("No hay datos");
+                if (filas.length === 0) throw new Error("Datos vacíos");
 
                 const actual = filas[filas.length - 1];
 
-                // Función de seguridad para índices
-                const getSafeVal = (fila, idx) => (fila[idx] && fila[idx].trim() !== "") ? fila[idx] : "0";
+                // Función para obtener valores de forma segura (evita errores de columna inexistente)
+                const s = (idx) => (actual[idx] !== undefined && actual[idx].trim() !== "") ? actual[idx].trim() : "0.00";
 
                 document.getElementById('fecha-val').innerText = actual[0];
-                document.getElementById('usd-venta').innerText = getSafeVal(actual, 2);
-                document.getElementById('usd-billete').innerText = getSafeVal(actual, 4);
-                document.getElementById('ccl-val').innerText = getSafeVal(actual, 20);
-                document.getElementById('mep-val').innerText = getSafeVal(actual, 22);
+                document.getElementById('usd-venta').innerText = s(2);
+                document.getElementById('usd-billete').innerText = s(4);
+                document.getElementById('ccl-val').innerText = s(20);
+                document.getElementById('mep-val').innerText = s(22);
 
                 renderChart(filas.slice(-90));
 
@@ -80,16 +81,15 @@
                 document.getElementById('dashboard').style.display = 'block';
 
             } catch (e) {
-                document.getElementById('loader').innerText = 'Error de sincronización. Verifica que el archivo esté publicado.';
-                console.error(e);
+                document.getElementById('loader').innerHTML = 'Error de conexión.<br><small>Verifica en Sheets: Archivo > Compartir > Publicar en la Web.</small>';
+                console.error("Error detallado:", e);
             }
         }
 
         function renderChart(data) {
             const ctx = document.getElementById('evolutionChart').getContext('2d');
             
-            // Función para limpiar números y evitar NaN en el gráfico
-            const parse = (val) => {
+            const p = (val) => {
                 let n = parseFloat(val);
                 return isNaN(n) ? null : n;
             };
@@ -99,11 +99,11 @@
                 data: {
                     labels: data.map(f => f[0]),
                     datasets: [
-                        { label: 'Banda Superior', data: data.map(f => parse(f[26])), borderColor: '#6b7394', borderDash: [5, 5], borderWidth: 1.5, pointRadius: 0, fill: false },
-                        { label: 'Oficial Venta', data: data.map(f => parse(f[2])), borderColor: '#4fffb0', borderWidth: 2, pointRadius: 0, fill: false },
-                        { label: 'CCL', data: data.map(f => parse(f[20])), borderColor: '#ff6b6b', borderWidth: 2, pointRadius: 0, fill: false },
-                        { label: 'MEP', data: data.map(f => parse(f[22])), borderColor: '#ffd166', borderWidth: 2, pointRadius: 0, fill: false },
-                        { label: 'Blue', data: data.map(f => parse(f[24])), borderColor: '#00d4ff', borderWidth: 2, pointRadius: 0, fill: false }
+                        { label: 'Banda Superior (AA)', data: data.map(f => p(f[26])), borderColor: '#6b7394', borderDash: [5, 5], borderWidth: 1.5, pointRadius: 0, fill: false },
+                        { label: 'Oficial Venta', data: data.map(f => p(f[2])), borderColor: '#4fffb0', borderWidth: 2, pointRadius: 0, fill: false },
+                        { label: 'CCL', data: data.map(f => p(f[20])), borderColor: '#ff6b6b', borderWidth: 2, pointRadius: 0, fill: false },
+                        { label: 'MEP', data: data.map(f => p(f[22])), borderColor: '#ffd166', borderWidth: 2, pointRadius: 0, fill: false },
+                        { label: 'Blue', data: data.map(f => p(f[24])), borderColor: '#00d4ff', borderWidth: 2, pointRadius: 0, fill: false }
                     ]
                 },
                 options: {
